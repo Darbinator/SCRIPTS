@@ -1,12 +1,12 @@
 import scipy.stats as stats
 import sys
-
-
+import os
 import argparse
 from argparse import RawTextHelpFormatter
+import re
 
-parser = argparse.ArgumentParser(description='test of overrepresentation of chromatin state in a list of specific genes', formatter_class=RawTextHelpFormatter)
-parser.add_argument("state",action='store', help="integer for a chromatin state (1-36) \n\n\
+parser = argparse.ArgumentParser(description='test of overrepresentation of chromatin state in a list of specific genes\n\nExemple: python3 fisher_chrState.py 3 DEG/Col_ColHS/id.txt', formatter_class=RawTextHelpFormatter)
+parser.add_argument("state",action='store', type=int, help="integer for a chromatin state (1-36) \n\n\
 list of chromatin states possible:\n\
 state	Preferential Epigenetics Marks		Preferential location\n\
 1			H3.3						3'UTR\n\
@@ -46,15 +46,66 @@ state	Preferential Epigenetics Marks		Preferential location\n\
 35		H3K9me2,DNA methylation,H2A.X			intergenic,pericentromere\n\
 36		CENH3,H3K9me2,DNA methylation,accessible DNA	rRNA,tRNA,centromere\n\n")
 parser.add_argument("list", action='store', help="list of genes to analyse overrepresentation of epigenetic mark")
+parser.add_argument("--pvalue",action='store', help="p-value associate to the exact fisher test for overepresentation of chromatin state (default=0.01) ", default=0.01)
 
 args = parser.parse_args()
 
 
-with open(args.list, 'r') as fp:
-            args.list = fp.read().strip(' ,\n')
-
-print(args.list)
+len_genes_background = 27416
 
 
-oddsratio, pvalue = stats.fisher_exact([[28775, 442], [835, 35]])
+if os.path.isfile(args.list):
+	with open(args.list, 'r') as fp:
+	            args.list_read = fp.read()
+
+	            regex_TAIRID = re.compile("AT[A-Z0-9]{1}G[0-9]{5}")
+
+	            genes_input = regex_TAIRID.findall(args.list_read)
+
+
+else:
+	print("Please give a correct list of genes file")
+	exit(0)
+	
+if args.state not in range(1,37):
+	print("Please give a correct chromatin state number (between 1 and 36)")
+
+
+
+else:
+	if not os.path.exists("At_genes_S"+str(args.state)):
+		os.system("wget http://systemsbiology.cau.edu.cn/chromstates/download/At_genes_S"+str(args.state))
+
+	with open("At_genes_S"+str(args.state),"r") as file:
+
+		target_background = []
+		for lignes in file.readlines():
+			target_background.append(lignes.split()[1].rstrip())
+
+
+target_input = []
+for code in target_background:
+	if code in genes_input:
+		target_input.append(code)
+
+
+
+
+oddsratio, pvalue = stats.fisher_exact([[len_genes_background, len(target_background)], [len(genes_input), len(target_input)]])
+
+if pvalue>args.pvalue:
+	print(args.state,pvalue,"not sign")
+
+elif oddsratio < 1:
+	print(args.state,pvalue,"under")
+
+else:
+	print(args.state,pvalue,"over")
+
+#os.path.dirname(args.list)
+
+
+
+
+
 
